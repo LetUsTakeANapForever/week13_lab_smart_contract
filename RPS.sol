@@ -4,7 +4,6 @@
 pragma solidity >=0.7.0 <0.9.0;
 
 import "./TimeUnit.sol";
-import "./Convert.sol";
 import "./CommitReveal.sol";
 
 contract RPS {
@@ -21,7 +20,6 @@ contract RPS {
     // P.S. addPlayer and input fns interlock
 
     TimeUnit public timeUnit = new TimeUnit();
-    Convert public convert = new Convert();
     CommitReveal public  commitReveal = new CommitReveal();
 
 
@@ -31,6 +29,7 @@ contract RPS {
     mapping(address => uint) private choices;
     bool enableRetrieval = false;
     mapping(address => bool) public committedStatus;
+    mapping(address => bytes32) public committedVAl;
 
     function addPlayer() public payable {
         require(msg.sender == 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4 || msg.sender == 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2 || msg.sender == 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db || msg.sender == 0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB);
@@ -45,7 +44,7 @@ contract RPS {
         require(msg.value == 1 ether); // each player must have 1 ether to send to the middle warehouse. 
         reward += msg.value;
         player_not_played[msg.sender] = true; // mapping to the amount of boolean
-        players.push(msg.sender); // add a player into the array whof passes all criteria
+        players.push(msg.sender); // add a player into the array who passes all criteria
         numPlayer++;
         
         // if players pass criteria and are added, we set starttime
@@ -76,11 +75,13 @@ contract RPS {
         require(player_not_played[msg.sender]); // check in the player_not_played ampping if this address (msg.sender) is true, if not you won't get through this line.
         // and a player who gives mapped true is the only one who calls addPlayer function before.
         // require(choice == 0 || choice == 1 || choice == 2 || choice == 3 || choice == 4);
-        
+      
+        committedVAl[msg.sender] = hashedChoice;
 
         //commit the hashedChoice here
-        commitReveal.commit(hashedChoice);
-        
+        commitReveal.commit(hashedChoice, msg.sender);
+
+        committedStatus[msg.sender] = true;
 
         // player_choice[msg.sender] = choice; // set a new mapping called player_choice where each address is mapped with choice they choose.
         player_not_played[msg.sender] = false; // reset the state for the next round
@@ -91,7 +92,7 @@ contract RPS {
         timeUnit.setStartTime();
     }
 
-   //logic to check if elapsedSeconds > 3600, the owner will take action to force endgame
+    //logic to check if elapsedSeconds > 3600, the owner will take action to force endgame
     function forcedEndGame() public {
         if (timeUnit.elapsedSeconds() > 3600){
             enableRetrieval = true;
@@ -126,15 +127,18 @@ contract RPS {
 
 
     function inputHexToReveal(bytes32 dataInput) public{
+
+        require(numInput == 2);
+
         revealedHashed[msg.sender] = dataInput;
+
+        commitReveal.reveal(dataInput, msg.sender);
+
+        hasRevealedStatus[msg.sender] = true;
         numInputToReveal++;
 
-        // TODO : a player must call reveal
-        commitReveal.reveal(revealedHashed[msg.sender]);
-        hasRevealedStatus[msg.sender] = true; 
 
-
-        if (numInput == 2 && numInputToReveal == 2) { // check if both players have picked their choices and input number to reveal their choices.
+        if (numInputToReveal == 2) { // check if both players have revealed their choices.
             _checkWinnerAndPay();
         }
     }
@@ -171,7 +175,7 @@ contract RPS {
         numInput = numPlayer = reward = 0;
         players.pop();
         players.pop();
-    }
+        }
 
     function getWinner(uint p0Choice, uint p1Choice) private pure returns (uint) {
         if (p0Choice == p1Choice) return 2; // draw
