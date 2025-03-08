@@ -76,6 +76,9 @@ function removePlayer(address p) private {
         
         // เรียกใช้งาน function commit จาก CommitReveal.sol เพื่อ commit choice ที่ถูก hash แล้วลงไป
         commitReveal.commit(hashedChoice);
+
+        // Set สถานะ player ที่ commit แล้วเป็น true
+        committedStatus[msg.sender] = true;
         
 
         player_not_played[msg.sender] = false;
@@ -114,40 +117,43 @@ function checkIfRefund() payable public{
 
 - อธิบายโค้ดส่วนทำการ reveal และนำ choice มาตัดสินผู้ชนะ
 ```bash
-// Function ที่ตัด byte ตัวสุดท้ายของ dataInput ซึ่งถือเป็น choice ของ player return กลับคือไปเมื่อถูกเรียกใช้งาน
-function getChoice(address player) private view returns (uint){
-        uint choice = uint(uint8(revealedHashed[player][31]));
-        require(choice >= 0 && choice <= 4, "Invalid choice"); // เช็กเพื่อกันกรณีที่ player ใส่ค่ามานอกเหนือจากที่กำหนด (ค่าเกิน 0 ถึง 5)
-        return choice;
-    }
-``` 
-```bash
 // Function จัดการการ reveal คำตอบ
-function inputHexToReveal(bytes32 dataInput) public{
-        revealedHashed[msg.sender] = dataInput;
-        numInputToReveal++;
+    function inputHexToReveal(bytes32 dataInput) public{
+
+        require(numInput == 2); // player ทั้งสองต้อง input choice ที่ตัวเองเลือกมาก่อนถึงจะเรียกใช้งานฟังก์ชันนี้ได้
 
         // Player แต่ละคนต้อง input dataInput ซึ่งไว้ reveal คำตอบแล้วเรียกใช้ function reveal จาก CommitReveal.sol
-        commitReveal.reveal(revealedHashed[msg.sender]);
-        hasRevealedStatus[msg.sender] = true; // จากนั้น set สถานะ hasRevealedStatus ของ player คนที่ input เข้ามาแล้วเป็น true
+        commitReveal.reveal(dataInput, msg.sender);
 
-        // เช็กอีกทีว่า player ทั้งสองคนได้ทำการ input ข้อมูลเพื่อ commit และ reveal แล้ว
-        if (numInput == 2 && numInputToReveal == 2) {
+        numInputToReveal++;
+
+        // ตัด byte ตัวสุดท้ายของ dataInput ซึ่งถือเป็น choice ของ player
+        choices[msg.sender] = uint(uint8(dataInput[31]));
+
+        // เช็กว่า player ทั้งสองคนได้ทำการ input ข้อมูลเพื่อ reveal แล้วถึงจะสามารถทำการตัดสินผู้ชนะและมอบรางวัลได้
+        if (numInputToReveal == 2) {
             _checkWinnerAndPay();
         }
     }
 ``` 
 ```bash
+// Function เรียกเช็กสถานะ revealed ของผู้เล่นแต่ละคน
+ function hasRevealedStatus(address player) private  view returns(bool) {
+        (, , bool status) = commitReveal.commits(player);
+        return status;
+    }
+``` 
+```bash
 // Function จัดการการตัดสินผู้ชนะและให้ reward 
 function _checkWinnerAndPay() private {
-        // เช็กว่า player ทั้งสองคน reveal แล้วหรือยัง ถ้ายัง จะไม่สามารถตัดสินผู้ชนะได้
+        // เช็กอีกครั้งว่า player ทั้งสองคน reveal แล้วหรือยัง ถ้ายัง จะไม่สามารถตัดสินผู้ชนะได้
         require(hasRevealedStatus[players[0]] && hasRevealedStatus[players[1]]);
 
-        // ดึง choice ของ player 0 ออกมาโดยใช้ function getChoice
-        uint p0Choice = getChoice(players[0]);
+        // ดึง choice ของ player 0 ออกมา
+        uint p0Choice = choices[players[0]];
 
-        // ดึง choice ของ player 1 ออกมาโดยใช้ function getChoice
-        uint p1Choice = getChoice(players[1]);
+        // ดึง choice ของ player 1 ออกมา
+        uint p1Choice = choices[players[1]];
 
         address payable account0 = payable(players[0]);
         address payable account1 = payable(players[1]);
