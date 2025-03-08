@@ -10,7 +10,6 @@ contract RPS {
     
     uint public numPlayer = 0; // set player as 0 bc anyone can play
     uint public reward = 0;
-    mapping (address => uint) public player_choice; // 0 - Rock, 1 - Paper , 2 - Scissors, 3 - Spock, 4 - Lizard
     mapping(address => bool) public player_not_played; // address is a player mapped to bool (playing or not playing).
     address[] public players; // account is like a public key and there must be a private key to open the private key.
     //and there's a smart contract owner who controls transac. sending.
@@ -19,17 +18,13 @@ contract RPS {
 
     // P.S. addPlayer and input fns interlock
 
-    TimeUnit public timeUnit = new TimeUnit();
-    CommitReveal public  commitReveal = new CommitReveal();
+    TimeUnit private  timeUnit = new TimeUnit();
+    CommitReveal private  commitReveal = new CommitReveal();
 
-
-    mapping(address => bool) public hasRevealedStatus;
-    mapping(address => bytes32) public revealedHashed; // mapping add. with hashed data that belongs to each player
     uint public numInputToReveal = 0;
-    mapping(address => uint) private choices;
     bool enableRetrieval = false;
-    mapping(address => bool) public committedStatus;
-    mapping(address => bytes32) public committedVAl;
+    mapping(address => bool) private  committedStatus;
+    mapping(address => uint) private   choices;
 
     function addPlayer() public payable {
         require(msg.sender == 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4 || msg.sender == 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2 || msg.sender == 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db || msg.sender == 0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB);
@@ -74,9 +69,6 @@ contract RPS {
         require(numPlayer == 2); // check if numPlayer == 2 yet, it not, we won't let you pass through this require line.
         require(player_not_played[msg.sender]); // check in the player_not_played ampping if this address (msg.sender) is true, if not you won't get through this line.
         // and a player who gives mapped true is the only one who calls addPlayer function before.
-        // require(choice == 0 || choice == 1 || choice == 2 || choice == 3 || choice == 4);
-      
-        committedVAl[msg.sender] = hashedChoice;
 
         //commit the hashedChoice here
         commitReveal.commit(hashedChoice, msg.sender);
@@ -130,12 +122,11 @@ contract RPS {
 
         require(numInput == 2);
 
-        revealedHashed[msg.sender] = dataInput;
-
         commitReveal.reveal(dataInput, msg.sender);
 
-        hasRevealedStatus[msg.sender] = true;
         numInputToReveal++;
+
+        choices[msg.sender] = uint(uint8(dataInput[31]));
 
 
         if (numInputToReveal == 2) { // check if both players have revealed their choices.
@@ -143,22 +134,21 @@ contract RPS {
         }
     }
 
-    function getChoice(address player) private view returns (uint){
-        uint choice = uint(uint8(revealedHashed[player][31]));
-        require(choice >= 0 && choice <= 4, "Invalid choice");
-        return choice;
+    function hasRevealedStatus(address player) private  view returns(bool) {
+        (, , bool status) = commitReveal.commits(player);
+        return status;
     }
 
     // private fn where others outside can't call, only ones in contract can call this fn.
     function _checkWinnerAndPay() private {
         // TODO : logic to check if both reveals are successful.
-        require(hasRevealedStatus[players[0]] && hasRevealedStatus[players[1]]);
+        require(hasRevealedStatus(players[0]) && hasRevealedStatus(players[1]));
 
         // TODO : retrieve player0_choice from input to reveal
-        uint p0Choice = getChoice(players[0]);
+        uint p0Choice = choices[players[0]];
 
         // TODO : retrieve player1_choice from input to reveal
-        uint p1Choice = getChoice(players[1]);
+        uint p1Choice = choices[players[1]];
 
         address payable account0 = payable(players[0]); // type cast the variable player to be payable address to recieve ETH.
         address payable account1 = payable(players[1]);
