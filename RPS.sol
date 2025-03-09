@@ -99,6 +99,7 @@ contract RPS {
             reward = 0;
             player_not_played[msg.sender] = false;
             removePlayer(msg.sender);
+            committedStatus[msg.sender] = false;
         }
     }
 
@@ -163,6 +164,8 @@ contract RPS {
             account1.transfer(reward / 2);
         }
         numInput = numPlayer = reward = 0;
+        committedStatus[players[0]] = false;
+        committedStatus[players[1]] = false;
         players.pop();
         players.pop();
         }
