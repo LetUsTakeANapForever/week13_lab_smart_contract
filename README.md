@@ -41,6 +41,7 @@ if (numPlayer == 2) { // ถ้าผู้เล่นครบ 2 คนแล�
             reward = 0;
             player_not_played[msg.sender] = false;
             removePlayer(msg.sender);
+            committedStatus[msg.sender] = false;
         }
     }
 
@@ -169,6 +170,8 @@ function _checkWinnerAndPay() private {
         }
         // Reset ทุก state ของเกมเพื่อรองรับการเล่นรอบถัดไป
         numInput = numPlayer = reward = 0;
+        committedStatus[players[0]] = false;
+        committedStatus[players[1]] = false;
         players.pop();
         players.pop();
     }
